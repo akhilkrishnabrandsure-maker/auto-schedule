@@ -1,0 +1,174 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Principle of least privilege: default to read-only for every job.
+# Individual jobs can opt into more permissions if needed.
+permissions:
+  contents: read
+
+# Cancel in-progress runs when a new commit is pushed to the same branch/PR.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install ruff
+        run: pip install "ruff==0.15.9"
+
+      - name: ruff check
+        run: ruff check .
+
+      - name: ruff format --check
+        run: ruff format --check .
+
+  typecheck:
+    name: Type check (mypy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # mypy loads Django settings during type inference; it never hits a DB.
+      SECRET_KEY: test-secret-key-not-for-production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: mypy
+        run: mypy apps/ config/ providers/ tests/ --ignore-missing-imports
+
+  test:
+    name: Test (pytest)
+    # Pinned rather than ubuntu-latest: the Postgres below is the one this
+    # runner image ships, so an image bump must not silently change its version.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      DJANGO_SETTINGS_MODULE: config.settings.test
+      SECRET_KEY: test-secret-key-not-for-production
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/brightbean_test
+      DB_HOST: localhost
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Uses the PostgreSQL preinstalled on the runner instead of a service
+      # container. Anonymous image pulls kept failing before any test ran:
+      # Docker Hub's rate limits broke main CI on 2026-06-10 (run 27262568530),
+      # and the AWS ECR Public mirror that replaced it caps anonymous pulls per
+      # source IP, which GitHub-hosted runners share ("toomanyrequests: Data
+      # limit exceeded", run 40125394980).
+      - name: Start PostgreSQL
+        run: |
+          sudo systemctl start postgresql.service
+          pg_isready --timeout=30
+          version=$(sudo -u postgres psql -tAc "SHOW server_version_num")
+          if [ "${version:0:2}" != "16" ]; then
+            echo "::error::Expected PostgreSQL 16 on the runner, got server_version_num $version"
+            exit 1
+          fi
+          sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'postgres';"
+          sudo -u postgres createdb brightbean_test
+
+      # Catches a model change whose migration was never generated. The
+      # companion hazard — a migration that is fine against an empty table but
+      # fails on one with rows — is covered by tests that apply migrations over
+      # seeded data (see apps/inbox/tests/test_reply_lifecycle_migrations.py).
+      - name: makemigrations --check
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: pytest
+        run: pytest --cov=apps --cov-report=term-missing
+
+  build:
+    name: Docker build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [lint, typecheck, test]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+
+      - name: Build image
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: .
+          push: false
+          tags: brightbean:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  secrets-scan:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # We invoke the gitleaks binary directly rather than using
+    # gitleaks/gitleaks-action, because that action now requires a paid
+    # license for GitHub organizations. The binary itself remains free
+    # and open source under the MIT license.
+    env:
+      GITLEAKS_VERSION: "8.24.3"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install gitleaks
+        run: |
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /tmp gitleaks
+          sudo mv /tmp/gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      - name: Run gitleaks
+        run: gitleaks detect --source . --redact --verbose --no-banner
