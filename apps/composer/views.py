@@ -861,6 +861,7 @@ def compose(request, workspace_id, post_id=None):
         "failed_platform_posts": failed_platform_posts,
         "failed_first_comments": failed_first_comments,
         "unsplash_enabled": bool(settings.UNSPLASH_ACCESS_KEY),
+        "ai_caption_enabled": bool(settings.ANTHROPIC_API_KEY),
     }
     return render(request, "composer/compose.html", context)
 
@@ -2141,6 +2142,42 @@ def pinterest_boards(request, workspace_id, account_id):
         return JsonResponse({"error": "Failed to fetch boards"}, status=502)
 
     return JsonResponse({"boards": [{"id": b.get("id"), "name": b.get("name")} for b in boards]})
+
+
+@login_required
+@require_permission("create_posts")
+@require_POST
+def ai_caption(request, workspace_id):
+    """Write a caption/description (and a title where needed) with Claude."""
+    from . import ai_caption as ai
+
+    workspace = _get_workspace(request, workspace_id)
+    try:
+        body = json.loads(request.body or b"{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid request."}, status=400)
+
+    brief = str(body.get("brief", ""))[:4000].strip()
+    current_caption = str(body.get("caption", ""))[:10000].strip()
+    title = str(body.get("title", ""))[:500].strip()
+    if not brief and not current_caption:
+        return JsonResponse({"error": "Describe what the post is about first."}, status=400)
+
+    account_ids = [str(a) for a in body.get("account_ids", []) if a][:20]
+    accounts = SocialAccount.objects.filter(workspace=workspace, id__in=account_ids) if account_ids else []
+    platforms = [{"platform": acc.platform, "limit": acc.char_limit} for acc in accounts]
+
+    try:
+        result = ai.generate_caption(
+            brief=brief,
+            current_caption=current_caption,
+            title=title,
+            platforms=platforms,
+            tone=str(body.get("tone", "friendly")),
+        )
+    except ai.AICaptionError as e:
+        return JsonResponse({"error": str(e)}, status=502)
+    return JsonResponse(result)
 
 
 @login_required

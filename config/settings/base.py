@@ -337,6 +337,11 @@ GOOGLE_AUTH_CLIENT_SECRET = env("GOOGLE_AUTH_CLIENT_SECRET", default="")
 # Unsplash stock-photo search in the composer (optional; empty disables the feature)
 UNSPLASH_ACCESS_KEY = env("UNSPLASH_ACCESS_KEY", default="")
 
+# AI caption/description writing in the composer, powered by Claude (optional;
+# an empty ANTHROPIC_API_KEY disables the feature).
+ANTHROPIC_API_KEY = env("ANTHROPIC_API_KEY", default="")
+AI_CAPTION_MODEL = env("AI_CAPTION_MODEL", default="claude-opus-5-5")
+
 SOCIALACCOUNT_PROVIDERS = {
     "google": {
         "APP": {

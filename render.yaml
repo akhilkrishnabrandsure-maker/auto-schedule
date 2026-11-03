@@ -20,6 +20,12 @@ services:
         value: "*"
       - key: STORAGE_BACKEND
         value: s3
+      # Public https address; the Claude MCP connector and OAuth redirects use it.
+      - key: APP_URL
+        sync: false
+      # Enables the composer's "AI Write" button.
+      - key: ANTHROPIC_API_KEY
+        sync: false
 
   - type: worker
     name: brightbean-worker

@@ -30,6 +30,9 @@ whitenoise>=6.7,<7.0
 # HTTP client (provider API calls)
 httpx>=0.27,<1.0
 
+# Claude API (AI caption writing in the composer)
+anthropic>=1.0,<2.0
+
 # Date utilities
 python-dateutil>=2.9,<3.0
 # zoneinfo reads the *system* tz database, which python:3.12-slim (our
