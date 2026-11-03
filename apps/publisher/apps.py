@@ -14,9 +14,11 @@ class PublisherConfig(AppConfig):
     @staticmethod
     def _register_tasks(sender, **kwargs):
         from apps.common.background import register_recurring_task
+        from apps.publisher.removal_check import CHECK_INTERVAL_SECONDS
         from apps.publisher.tasks import (
             PUBLISH_CONFIRM_INTERVAL_SECONDS,
             PUBLISH_CYCLE_INTERVAL_SECONDS,
+            check_removed_posts,
             confirm_pending_publishes,
             run_publish_cycle,
         )
@@ -33,4 +35,11 @@ class PublisherConfig(AppConfig):
             confirm_pending_publishes,
             repeat=PUBLISH_CONFIRM_INTERVAL_SECONDS,
             verbose_name="confirm_pending_publishes",
+        )
+        # Notice posts deleted directly on Facebook, Instagram, YouTube or
+        # LinkedIn so they stop showing as "Published".
+        register_recurring_task(
+            check_removed_posts,
+            repeat=CHECK_INTERVAL_SECONDS,
+            verbose_name="check_removed_posts",
         )

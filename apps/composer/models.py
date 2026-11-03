@@ -473,6 +473,12 @@ class PlatformPost(models.Model):
     publish_error = models.TextField(blank=True, default="")
     published_at = models.DateTimeField(blank=True, null=True)
 
+    # Set when a check finds the published post no longer exists on the
+    # platform (deleted there by hand). ``status`` stays PUBLISHED so history
+    # and analytics keep working; the UI shows "Removed" instead.
+    removed_on_platform_at = models.DateTimeField(blank=True, null=True)
+    removal_checked_at = models.DateTimeField(blank=True, null=True, db_index=True)
+
     # First-comment outcome. Kept in dedicated columns rather than in
     # ``platform_extra``: that field is an *input* channel — the publish engine
     # merges it into ``PublishContent.extra``, which providers forward into
@@ -533,6 +539,17 @@ class PlatformPost(models.Model):
 
     def __str__(self):
         return f"PlatformPost({self.social_account.platform}): {self.status}"
+
+    @property
+    def chip_status(self):
+        """Status key for calendar/list chips: "removed" overrides "published"."""
+        if self.removed_on_platform_at and self.status == self.Status.PUBLISHED:
+            return "removed"
+        return self.status
+
+    @property
+    def chip_status_label(self):
+        return "Removed on platform" if self.chip_status == "removed" else self.get_status_display()
 
     @property
     def is_reschedulable(self):

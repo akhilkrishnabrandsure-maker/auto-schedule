@@ -58,6 +58,7 @@
     .status-partially_published { background: #F0FDF4; color: #15803D; }
     .status-failed     { background: #FEF2F2; color: #B91C1C; }
     .status-on_hold    { background: #F5F3FF; color: #6D28D9; }
+    .status-removed    { background: #FEF2F2; color: #B91C1C; text-decoration: line-through; }
 
     /* Platform icon badges */
     .pi-facebook   { background: #1877F2; }
@@ -278,7 +279,7 @@
 
                     {% for pp in day.posts %}
                     <a href="{% url 'composer:compose_edit' workspace_id=pp.post.workspace_id post_id=pp.post_id %}"
-                       class="cross-post-chip status-{{ pp.status }}"
+                       class="cross-post-chip status-{{ pp.chip_status }}"
                        title="{{ pp.post.workspace.name }}: {{ pp.post.caption_snippet }}">
                         <span class="ws-dot" style="background: {{ pp.post.workspace.primary_color|default:'#F97316' }};"></span>
                         <span class="w-4 h-4 rounded flex items-center justify-center pi-{{ pp.social_account.platform }} flex-shrink-0 text-white">

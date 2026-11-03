@@ -44,3 +44,15 @@ def confirm_pending_publishes():
     settled = PublishEngine().confirm_pending_publishes()
     if settled:
         logger.info("Publish confirmation sweep settled %d platform post(s)", settled)
+
+
+@background(schedule=0)
+def check_removed_posts():
+    """Mark published posts that were deleted directly on their platform.
+
+    Registered every ``removal_check.CHECK_INTERVAL_SECONDS`` by
+    apps.publisher.apps. Runs in the general lane, never the publishing one.
+    """
+    from apps.publisher.removal_check import run_removal_check
+
+    run_removal_check()

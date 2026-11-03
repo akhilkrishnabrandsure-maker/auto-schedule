@@ -30,7 +30,7 @@ Context: week_days, week_slots, today, default_workspace.
             {% endif %}
             {% for pp in slot_posts %}
             <a href="{% url 'composer:compose_edit' workspace_id=pp.post.workspace_id post_id=pp.post_id %}"
-               class="cross-post-chip status-{{ pp.status }}"
+               class="cross-post-chip status-{{ pp.chip_status }}"
                title="{{ pp.post.workspace.name }}: {{ pp.post.caption_snippet }}">
                 <span class="ws-dot" style="background: {{ pp.post.workspace.primary_color|default:'#F97316' }};"></span>
                 <span class="w-4 h-4 rounded flex items-center justify-center pi-{{ pp.social_account.platform }} flex-shrink-0 text-white">

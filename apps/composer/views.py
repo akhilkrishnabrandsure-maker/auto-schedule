@@ -771,6 +771,13 @@ def compose(request, workspace_id, post_id=None):
         pp for pp in platform_post_list if pp.status == PlatformPost.Status.FAILED and pp.publish_error
     ]
 
+    # Published posts whose platform copy was deleted by hand (see
+    # apps.publisher.removal_check), plus whether a manual check makes sense.
+    removed_platform_posts = [pp for pp in platform_post_list if pp.chip_status == "removed"]
+    can_check_removed = any(
+        pp.status == PlatformPost.Status.PUBLISHED and pp.platform_post_id for pp in platform_post_list
+    )
+
     # A first comment that failed leaves the post itself published, so it never
     # shows up in the banner above — without this the post looks fully
     # successful while the comment is silently missing.
@@ -859,6 +866,8 @@ def compose(request, workspace_id, post_id=None):
         # that account — the save endpoints use this to leave siblings alone.
         "account_scope": account_filter if (post_id and account_filter) else "",
         "failed_platform_posts": failed_platform_posts,
+        "removed_platform_posts": removed_platform_posts,
+        "can_check_removed": can_check_removed,
         "failed_first_comments": failed_first_comments,
         "unsplash_enabled": bool(settings.UNSPLASH_ACCESS_KEY),
         "ai_caption_enabled": bool(settings.GEMINI_API_KEY or settings.ANTHROPIC_API_KEY),
@@ -2560,6 +2569,25 @@ def post_delete(request, workspace_id, post_id):
         status=204,
         headers={"HX-Trigger": "postChanged"},
     )
+
+
+@login_required
+@require_POST
+def check_removed_view(request, workspace_id, post_id):
+    """Ask each platform right now whether this post's published copies still exist."""
+    from apps.publisher.removal_check import check_posts
+
+    workspace = _get_workspace(request, workspace_id)
+    post = get_object_or_404(Post, id=post_id, workspace=workspace)
+    platform_posts = (
+        post.platform_posts.filter(status=PlatformPost.Status.PUBLISHED)
+        .exclude(platform_post_id="")
+        .select_related("social_account")
+    )
+    check_posts(list(platform_posts))
+    response = HttpResponse(status=204)
+    response["HX-Refresh"] = "true"
+    return response
 
 
 @login_required
