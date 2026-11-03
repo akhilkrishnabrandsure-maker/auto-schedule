@@ -861,7 +861,7 @@ def compose(request, workspace_id, post_id=None):
         "failed_platform_posts": failed_platform_posts,
         "failed_first_comments": failed_first_comments,
         "unsplash_enabled": bool(settings.UNSPLASH_ACCESS_KEY),
-        "ai_caption_enabled": bool(settings.ANTHROPIC_API_KEY),
+        "ai_caption_enabled": bool(settings.GEMINI_API_KEY or settings.ANTHROPIC_API_KEY),
     }
     return render(request, "composer/compose.html", context)
 
@@ -2148,7 +2148,7 @@ def pinterest_boards(request, workspace_id, account_id):
 @require_permission("create_posts")
 @require_POST
 def ai_caption(request, workspace_id):
-    """Write a caption/description (and a title where needed) with Claude."""
+    """Write a caption/description (and a title where needed) with Gemini or Claude."""
     from . import ai_caption as ai
 
     workspace = _get_workspace(request, workspace_id)

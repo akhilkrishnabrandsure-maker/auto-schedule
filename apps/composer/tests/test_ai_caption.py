@@ -72,6 +72,15 @@ class AICaptionViewTests(TestCase):
         self.assertEqual(resp.status_code, 502)
         self.assertIn("busy", resp.json()["error"])
 
+    def test_compose_page_shows_button(self):
+        resp = self.client.get(reverse("composer:compose", kwargs={"workspace_id": self.workspace.id}))
+        self.assertContains(resp, "Write with AI")
+
+    @override_settings(ANTHROPIC_API_KEY="")
+    def test_compose_page_hides_button_without_key(self):
+        resp = self.client.get(reverse("composer:compose", kwargs={"workspace_id": self.workspace.id}))
+        self.assertNotContains(resp, "Write with AI")
+
     def test_ignores_accounts_from_other_workspaces(self):
         other_ws = Workspace.objects.create(organization=self.org, name="Other")
         other = SocialAccount.objects.create(
@@ -86,3 +95,56 @@ class AICaptionViewTests(TestCase):
         ) as gen:
             self._post({"brief": "hi", "account_ids": [str(other.id)]})
         self.assertEqual(gen.call_args.kwargs["platforms"], [])
+
+
+@override_settings(GEMINI_API_KEY="gem-key", GEMINI_MODEL="gemini-test", ANTHROPIC_API_KEY="")
+class GeminiCaptionTests(TestCase):
+    def _call(self):
+        from apps.composer import ai_caption
+
+        return ai_caption.generate_caption(
+            brief="Halloween offer",
+            current_caption="",
+            title="",
+            platforms=[{"platform": "youtube", "limit": 5000}],
+            tone="playful",
+        )
+
+    def _response(self, status, payload):
+        resp = mock.Mock(status_code=status, text=json.dumps(payload))
+        resp.json.return_value = payload
+        return resp
+
+    def test_gemini_reply_is_parsed(self):
+        reply = {"candidates": [{"content": {"parts": [{"text": '{"title": "Boo!", "caption": "Spooky deals #halloween"}'}]}}]}
+        with mock.patch("apps.composer.ai_caption.httpx.post", return_value=self._response(200, reply)) as post:
+            result = self._call()
+
+        self.assertEqual(result, {"title": "Boo!", "caption": "Spooky deals #halloween"})
+        args, kwargs = post.call_args
+        self.assertIn("models/gemini-test:generateContent", args[0])
+        self.assertEqual(kwargs["headers"]["x-goog-api-key"], "gem-key")
+        self.assertIn("Halloween offer", kwargs["json"]["contents"][0]["parts"][0]["text"])
+
+    def test_code_fenced_json_is_accepted(self):
+        reply = {"candidates": [{"content": {"parts": [{"text": '```json\n{"title": "", "caption": "Hi"}\n```'}]}}]}
+        with mock.patch("apps.composer.ai_caption.httpx.post", return_value=self._response(200, reply)):
+            self.assertEqual(self._call()["caption"], "Hi")
+
+    def test_bad_key_gives_clear_error(self):
+        from apps.composer import ai_caption
+
+        err = {"error": {"message": "API key not valid. Please pass a valid API key."}}
+        with mock.patch("apps.composer.ai_caption.httpx.post", return_value=self._response(400, err)):
+            with self.assertRaisesMessage(ai_caption.AICaptionError, "GEMINI_API_KEY"):
+                self._call()
+
+    def test_blocked_prompt_gives_clear_error(self):
+        from apps.composer import ai_caption
+
+        with mock.patch(
+            "apps.composer.ai_caption.httpx.post",
+            return_value=self._response(200, {"promptFeedback": {"blockReason": "SAFETY"}}),
+        ):
+            with self.assertRaisesMessage(ai_caption.AICaptionError, "declined"):
+                self._call()

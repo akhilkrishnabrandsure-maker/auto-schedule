@@ -36,7 +36,7 @@ urlpatterns = [
     path("compose/<uuid:post_id>/autosave/", views.autosave, name="autosave_edit"),
     # Live preview
     path("compose/preview/", views.preview, name="preview"),
-    # AI caption writing (Claude)
+    # AI caption writing (Gemini or Claude)
     path("compose/ai-caption/", views.ai_caption, name="ai_caption"),
     # Media
     path("compose/media-picker/", views.media_picker, name="media_picker"),

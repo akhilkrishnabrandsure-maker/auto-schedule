@@ -23,7 +23,9 @@ services:
       # Public https address; the Claude MCP connector and OAuth redirects use it.
       - key: APP_URL
         sync: false
-      # Enables the composer's "AI Write" button.
+      # Enables the composer's "Write with AI" button (set one of these).
+      - key: GEMINI_API_KEY
+        sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
 

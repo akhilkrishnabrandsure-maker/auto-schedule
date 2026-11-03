@@ -337,8 +337,11 @@ GOOGLE_AUTH_CLIENT_SECRET = env("GOOGLE_AUTH_CLIENT_SECRET", default="")
 # Unsplash stock-photo search in the composer (optional; empty disables the feature)
 UNSPLASH_ACCESS_KEY = env("UNSPLASH_ACCESS_KEY", default="")
 
-# AI caption/description writing in the composer, powered by Claude (optional;
-# an empty ANTHROPIC_API_KEY disables the feature).
+# AI caption/description writing in the composer (optional). Gemini is used when
+# GEMINI_API_KEY is set, otherwise Claude when ANTHROPIC_API_KEY is set; with
+# neither, the "Write with AI" button is hidden.
+GEMINI_API_KEY = env("GEMINI_API_KEY", default="")
+GEMINI_MODEL = env("GEMINI_MODEL", default="gemini-3.6-flash")
 ANTHROPIC_API_KEY = env("ANTHROPIC_API_KEY", default="")
 AI_CAPTION_MODEL = env("AI_CAPTION_MODEL", default="claude-opus-5-5")
 
