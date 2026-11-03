@@ -978,6 +978,20 @@
                 }
             }
         });
+
+        /* Show <time data-local-time datetime="ISO"> in the viewer's own timezone. */
+        function renderLocalTimes(root) {
+            var fmt = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+            (root || document).querySelectorAll('time[data-local-time]').forEach(function (el) {
+                var d = new Date(el.getAttribute('datetime'));
+                if (!isNaN(d)) {
+                    el.textContent = fmt.format(d);
+                    el.title = d.toString();
+                }
+            });
+        }
+        document.addEventListener('DOMContentLoaded', function () { renderLocalTimes(); });
+        document.body.addEventListener('htmx:afterSettle', function (evt) { renderLocalTimes(evt.detail.target); });
     </script>
     <script src="{% static 'js/alpine.min.js' %}" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>

@@ -158,3 +158,6 @@ class RemovalFlowTests(TestCase):
         page = self.client.get(url)
         self.assertContains(page, "Removed on platform")
         self.assertContains(page, "this post was deleted on")
+        # The time is rendered in the viewer's own timezone by the browser.
+        self.assertContains(page, '<time data-local-time datetime="')
+        self.assertContains(page, "+00:00")

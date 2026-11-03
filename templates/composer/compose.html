@@ -365,7 +365,7 @@
                     {% for pp in removed_platform_posts %}
                     <p class="text-xs text-red-600 pl-5.5">
                         <span class="font-semibold">{{ pp.social_account.account_name|default:pp.social_account.account_handle }}:</span>
-                        this post was deleted on {{ pp.social_account.get_platform_display }} (noticed {{ pp.removed_on_platform_at|timezone:workspace.effective_timezone|date:"M d, H:i" }}).
+                        this post was deleted on {{ pp.social_account.get_platform_display }} (noticed <time data-local-time datetime="{{ pp.removed_on_platform_at|utc|date:'c' }}">{{ pp.removed_on_platform_at|timezone:workspace.effective_timezone|date:"M d, H:i" }}</time>).
                     </p>
                     {% endfor %}
                 </div>
